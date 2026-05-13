@@ -3,25 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <!-- JUDUL & IKON (FAVICON) -->
-    <title>Global AnonChat - Kirim Pesan Rahasia</title>
+    <title>Global AnonChat - Luxury Edition</title>
     <link rel="icon" type="image/png" href="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=anon&backgroundColor=b6e3f4">
-    <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=anon&backgroundColor=b6e3f4">
-
-    <!-- META TAGS UNTUK PREVIEW LINK (WhatsApp/IG/FB) -->
-    <meta name="description" content="Kirim pesan rahasia secara global dan anonim!">
-    <meta property="og:title" content="Global AnonChat - NGL Style">
-    <meta property="og:description" content="Tuliskan rahasiamu di sini tanpa identitas!">
-    <meta property="og:image" content="https://api.dicebear.com/7.x/bottts-neutral/png?seed=anon&backgroundColor=ff5e3a">
-    <meta property="og:type" content="website">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
+    <style>
+        @keyframes mesh { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        .mesh-bg { background: linear-gradient(-45deg, #FF9A9E, #FAD0C4, #A18CD1, #FBC2EB); background-size: 400% 400%; animation: mesh 12s ease infinite; }
+        .ios-blur { backdrop-filter: blur(25px) saturate(200%); -webkit-backdrop-filter: blur(25px) saturate(200%); }
+        ::-webkit-scrollbar { display: none; }
+        
+        body { height: 100dvh; width: 100vw; overflow: hidden; position: fixed; }
+        .content-area { height: calc(100dvh - 120px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        
+        .nav-active { color: #db2777 !important; transform: scale(1.1); font-weight: 900; }
+        .nav-btn { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s ease; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        
+        /* YouTube Player Hidden */
+        #player-container { position: absolute; width: 0; height: 0; visibility: hidden; }
+    </style>
+</head>
+<body class="mesh-bg font-sans antialiased text-gray-900">
+
+    <div class="px-6 pt-10 pb-4 flex justify-between items-center relative z-10">
+        <div>
+            <h1 class="text-3xl font-black tracking-tighter text-black/80">AnonChat</h1>
+            <div class="flex items-center space-x-2 mt-1">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span id="online-count" class="text-[10px] font-black uppercase text-black/50 tracking-widest">Memuat...</span>
+            </div>
+        </div>
+        <div class="flex space-x-3">
+            <button onclick="document.body.click()" class="bg-white/40 p-3 rounded-full ios-blur shadow-lg active:scale-90 transition-all">
+                <i data-lucide="music" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="content-area px-6">
+        <!-- VIEW: GLOBAL -->
+        <div id="view-global" class="space-y-6">
+            <div class="bg-white/90 ios-blur p-6 rounded-[2.5rem] shadow-xl border border-white/50 relative">
+                <div class="absolute top-4 right-6 flex space-x-2">
+                    <button onclick="generateAIIdea()" class="bg-purple-100 text-purple-600 p-2 rounded-full hover:bg-purple-200 transition-all">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <textarea id="global-input" placeholder="Tulis rahasiamu ke feed global..." class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-300"></textarea>
+                <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">Kirim ke Global</button>
+            </div>
+            
+            <div id="global-list" class="space-y-4">
+                <!-- Pesan global akan muncul di sini -->
+            </div>
+        </div>
+
+        <!-- VIEW: INBOX -->
+        <div id="view-inbox" class="hidden animate-in fade-in slide-in-from-right-4">
+            <h2 class="text-3xl font-black tracking-tighter mb-6">Pesan Masuk</h2>
+            <div id="inbox-list" class="space-y-4">
+                <!-- Pesan masuk akan muncul di sini -->
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] h-20 bg-white/95 ios-blur rounded-[2.5rem] shadow-2xl border border-white/50 flex justify-around items-center z-[999] overflow-hidden">
+        <div id="tab-global" onclick="switchTab('global')" class="nav-btn nav-active">
+            <i data-lucide="globe" class="w-6 h-6"></i>
+            <span class="text-[9px] font-black uppercase mt-1">Global</span>
+        </div>
+        <div id="tab-inbox" onclick="switchTab('inbox')" class="nav-btn text-black/30 relative">
+            <i data-lucide="message-circle" class="w-6 h-6"></i>
+            <span class="text-[9px] font-black uppercase mt-1">Inbox</span>
+            <div id="inbox-badge" class="hidden absolute top-4 right-8 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold animate-bounce">0</div>
+        </div>
+    </div>
+
+    <div id="luxury-toast" class="fixed bottom-32 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest shadow-2xl transition-all duration-300 opacity-0 translate-y-20 z-[1000]">
+        Pesan Berhasil! ✨
+    </div>
+
+    <div id="private-modal" class="hidden fixed inset-0 z-[2000] items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div class="flex justify-between items-start mb-6">
+                <h3 class="text-xl font-black tracking-tight">Kirim Pesan ke <br><span id="target-anon-name" class="text-pink-600">@anon</span></h3>
+                <button onclick="closePrivateModal()" class="text-gray-300 hover:text-gray-600"><i data-lucide="x"></i></button>
+            </div>
+            <textarea id="private-input" placeholder="Tulis pesan rahasia..." class="w-full bg-gray-50 rounded-[2rem] p-6 border-none focus:ring-2 ring-pink-500 text-lg font-bold min-h-[150px] mb-6"></textarea>
+            <button id="send-private-btn" onclick="sendPrivate()" class="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Kirim Pesan</button>
+        </div>
+    </div>
+
+    <div id="player-container"><div id="yt-player"></div></div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, serverTimestamp, where, doc, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, serverTimestamp, where, doc, updateDoc, arrayUnion, increment, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -41,199 +120,132 @@
 
         let currentUser = null;
         let activeTargetId = null;
-        let selectedMessageId = null;
         let inboxMessages = [];
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
-                document.getElementById('my-id-display').innerText = user.uid.slice(0, 6);
                 listenToGlobal();
                 listenToInbox();
+                updateOnlineCount();
             } else {
-                signInAnonymously(auth);
+                try {
+                    await signInAnonymously(auth);
+                } catch (e) { console.error("Auth Error:", e); }
             }
         });
 
-        // GLOBAL FEED LOGIC
         window.sendGlobal = async () => {
             const input = document.getElementById('global-input');
             const text = input.value.trim();
             if (!text || !currentUser) return;
-
             const btn = document.getElementById('send-btn');
             btn.disabled = true;
-            input.value = "";
-
             try {
                 await addDoc(collection(db, "global_feed"), {
                     senderId: currentUser.uid,
                     content: text,
                     timestamp: serverTimestamp(),
                     color: getRandomNGLColor(),
-                    likes: 0
+                    likes: 0,
+                    likedBy: [],
+                    views: Math.floor(Math.random() * 20) + 1
                 });
+                input.value = "";
+                showToast("Pesan Terkirim! 🚀");
             } catch (e) { console.error(e); } 
             finally { btn.disabled = false; }
         };
 
-        window.toggleLike = async (docId) => {
-            try {
-                const docRef = doc(db, "global_feed", docId);
-                await updateDoc(docRef, {
-                    likes: increment(1)
-                });
-            } catch (e) { console.error("Error liking:", e); }
-        };
-
-        window.copyMessage = (text) => {
-            const tempInput = document.createElement("textarea");
-            tempInput.value = text;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand("copy");
-            document.body.removeChild(tempInput);
-            
-            // Notifikasi sederhana tanpa alert
-            const btn = event.currentTarget;
-            const originalIcon = btn.innerHTML;
-            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-white"></i>';
-            lucide.createIcons();
-            setTimeout(() => {
-                btn.innerHTML = originalIcon;
-                lucide.createIcons();
-            }, 2000);
-        };
-
-        function timeAgo(date) {
-            if (!date) return "...";
-            const seconds = Math.floor((new Date() - date) / 1000);
-            if (seconds < 60) return "Baru saja";
-            const minutes = Math.floor(seconds / 60);
-            if (minutes < 60) return minutes + "m lalu";
-            const hours = Math.floor(minutes / 60);
-            if (hours < 24) return hours + "j lalu";
-            return Math.floor(hours / 24) + "h lalu";
+        function listenToGlobal() {
+            const q = query(collection(db, "global_feed"), orderBy("timestamp", "desc"), limit(30));
+            onSnapshot(q, (snapshot) => {
+                const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderGlobal(messages);
+            });
         }
 
-        // PRIVATE MESSAGE LOGIC (SEND TO INBOX)
-        window.openPrivateModal = (targetId, targetName) => {
+        window.toggleLike = async (docId) => {
+            if (!docId || !currentUser) return;
+            const docRef = doc(db, "global_feed", docId);
+            try {
+                const snap = await getDoc(docRef);
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const likedBy = data.likedBy || [];
+                if (likedBy.includes(currentUser.uid)) {
+                    showToast("Sudah disukai! ❤️");
+                    return;
+                }
+                await updateDoc(docRef, {
+                    likedBy: arrayUnion(currentUser.uid),
+                    likes: increment(1)
+                });
+            } catch (e) { console.error(e); }
+        };
+
+        function listenToInbox() {
+            if (!currentUser) return;
+            const q = query(collection(db, "private_messages"), where("receiverId", "==", currentUser.uid));
+            onSnapshot(q, (snapshot) => {
+                inboxMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                inboxMessages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                const badge = document.getElementById('inbox-badge');
+                badge.innerText = inboxMessages.length;
+                badge.classList.toggle('hidden', inboxMessages.length === 0);
+            });
+        }
+
+        window.openPrivateModal = (targetId, name) => {
             activeTargetId = targetId;
-            document.getElementById('target-anon-name').innerText = targetName;
-            document.getElementById('private-modal').classList.remove('hidden');
-            document.getElementById('private-modal').classList.add('flex');
+            document.getElementById('target-anon-name').innerText = name;
+            document.getElementById('private-modal').classList.replace('hidden', 'flex');
         };
 
         window.closePrivateModal = () => {
-            document.getElementById('private-modal').classList.add('hidden');
-            document.getElementById('private-modal').classList.remove('flex');
+            document.getElementById('private-modal').classList.replace('flex', 'hidden');
             document.getElementById('private-input').value = "";
         };
 
         window.sendPrivate = async () => {
-            const input = document.getElementById('private-input');
-            const text = input.value.trim();
-            if (!text || !currentUser || !activeTargetId) return;
-
-            const btn = document.getElementById('send-private-btn');
-            btn.disabled = true;
-
+            const text = document.getElementById('private-input').value.trim();
+            if (!text || !activeTargetId) return;
             try {
                 await addDoc(collection(db, "private_messages"), {
                     senderId: currentUser.uid,
                     receiverId: activeTargetId,
                     content: text,
-                    timestamp: serverTimestamp(),
-                    replies: []
+                    timestamp: serverTimestamp()
                 });
-                
-                btn.innerText = "Terkirim! ✅";
-                setTimeout(() => {
-                    closePrivateModal();
-                    btn.innerText = "Kirim Pesan";
-                    btn.disabled = false;
-                }, 1500);
-            } catch (e) { console.error(e); btn.disabled = false; }
+                showToast("Rahasia Terkirim! 🤫");
+                closePrivateModal();
+            } catch (e) { console.error(e); }
         };
 
-        // REPLY LOGIC
-        window.sendReply = async () => {
-            const input = document.getElementById('reply-input');
-            const text = input.value.trim();
-            if (!text || !selectedMessageId) return;
-
-            try {
-                const msgRef = doc(db, "private_messages", selectedMessageId);
-                await updateDoc(msgRef, {
-                    replies: arrayUnion({
-                        senderId: currentUser.uid,
-                        content: text,
-                        timestamp: new Date()
-                    })
-                });
-                input.value = "";
-            } catch (e) { console.error("Error replying:", e); }
-        };
-
-        // LISTENERS
-        function listenToGlobal() {
-            const q = query(collection(db, "global_feed"), limit(50)); 
-            onSnapshot(q, (snapshot) => {
-                const messages = snapshot.docs.map(doc => doc.data());
-                messages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                renderGlobal(messages);
-            });
-        }
-
-        function listenToInbox() {
-            const q = query(collection(db, "private_messages"), where("receiverId", "==", currentUser.uid));
-            onSnapshot(q, (snapshot) => {
-                inboxMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                inboxMessages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-
-                const badge = document.getElementById('inbox-badge');
-                badge.innerText = inboxMessages.length;
-                badge.classList.toggle('hidden', inboxMessages.length === 0);
-                
-                renderInbox(inboxMessages);
-                if (selectedMessageId) openChat(selectedMessageId); 
-            });
-        }
-
-        // RENDERERS
         function renderGlobal(messages) {
             const container = document.getElementById('global-list');
             container.innerHTML = messages.map(msg => {
                 const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
-                const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
-                const date = msg.timestamp ? msg.timestamp.toDate() : null;
+                const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4`;
                 const likes = msg.likes || 0;
-                
+                const hasLiked = msg.likedBy?.includes(currentUser?.uid);
                 return `
-                <div class="${msg.color || 'bg-gradient-to-br from-pink-500 to-rose-600'} p-6 rounded-[2.5rem] shadow-lg mb-6 transform transition-all active:scale-[0.97]">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center space-x-3 opacity-90">
-                            <div class="w-8 h-8 rounded-full bg-white/20 border border-white/30 overflow-hidden">
-                                <img src="${avatarUrl}" alt="Anon" class="w-full h-full object-cover">
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-[10px] text-white font-black uppercase tracking-widest">@anon_${shortId}</span>
-                                <span class="text-[8px] text-white/70 font-bold">${timeAgo(date)}</span>
-                            </div>
+                <div class="${msg.color || 'bg-pink-500'} p-6 rounded-[2.5rem] shadow-lg mb-6 active:scale-[0.98] transition-all relative overflow-hidden">
+                    ${likes > 5 ? '<div class="absolute top-4 -right-8 bg-yellow-400 text-black text-[8px] font-black px-10 py-1 rotate-45 z-20">HOT</div>' : ''}
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <img src="${avatar}" class="w-8 h-8 rounded-full bg-white/20 border border-white/30">
+                            <span class="text-[10px] text-white font-black uppercase tracking-widest">@anon_${shortId}</span>
                         </div>
                         <div class="flex space-x-2">
-                            <button onclick="copyMessage(\`${msg.content}\`)" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                                <i data-lucide="copy" class="w-4 h-4 text-white"></i>
-                            </button>
-                            <button onclick="openPrivateModal('${msg.senderId}', '@anon_${shortId}')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                                <i data-lucide="send" class="w-4 h-4 text-white"></i>
-                            </button>
+                            <button onclick="openPrivateModal('${msg.senderId}', '@anon_${shortId}')" class="bg-white/20 p-2 rounded-full"><i data-lucide="send" class="w-4 h-4 text-white"></i></button>
                         </div>
                     </div>
-                    <p class="text-white font-bold text-xl leading-tight italic mb-4">"${msg.content}"</p>
-                    <div class="flex items-center justify-end">
-                        <button onclick="toggleLike('${msg.id}')" class="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all active:scale-90">
-                            <i data-lucide="heart" class="w-4 h-4 text-white ${likes > 0 ? 'fill-white' : ''}"></i>
+                    <p class="text-white font-bold text-xl leading-tight mb-4 italic">"${msg.content}"</p>
+                    <div class="flex justify-between items-center">
+                        <div class="bg-black/10 px-3 py-1 rounded-full text-[10px] text-white/50 font-bold">${(msg.views || 0) + (likes * 2)} views</div>
+                        <button onclick="toggleLike('${msg.id}')" class="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-full">
+                            <i data-lucide="heart" class="w-4 h-4 text-white ${hasLiked ? 'fill-white' : ''}"></i>
                             <span class="text-white text-xs font-black">${likes}</span>
                         </button>
                     </div>
@@ -242,212 +254,72 @@
             lucide.createIcons();
         }
 
-        function renderInbox(messages) {
+        window.renderInbox = (messages) => {
             const container = document.getElementById('inbox-list');
             if (messages.length === 0) {
-                container.innerHTML = '<p class="text-center text-gray-400 py-10 italic">Belum ada pesan rahasia...</p>';
-                return;
-            }
-            container.innerHTML = messages.map(msg => `
-                <div onclick="openChat('${msg.id}')" class="bg-white/60 p-5 rounded-[2rem] border border-white/50 mb-3 shadow-sm transform transition-all active:scale-95 cursor-pointer">
-                    <div class="flex items-center justify-between mb-1">
-                         <span class="text-[8px] font-black text-pink-600 uppercase tracking-widest">Pesan Baru</span>
-                         <span class="text-[8px] text-gray-400 font-bold">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
-                    </div>
-                    <p class="text-gray-800 font-bold text-lg leading-snug truncate">"${msg.content}"</p>
-                </div>`).join('');
-        }
-
-        window.openChat = (id) => {
-            selectedMessageId = id;
-            const msg = inboxMessages.find(m => m.id === id);
-            if (!msg) return;
-
-            const chatOverlay = document.getElementById('chat-overlay');
-            const chatHistory = document.getElementById('chat-history');
-            
-            chatOverlay.classList.remove('translate-x-full');
-            
-            let html = `
-                <div class="flex flex-col space-y-4">
-                    <div class="self-start bg-white p-4 rounded-2xl rounded-tl-none shadow-sm max-w-[85%] border border-gray-100">
-                        <p class="text-gray-800 font-bold">${msg.content}</p>
-                        <span class="text-[8px] text-gray-400 block mt-1">Pesan Utama</span>
-                    </div>
-            `;
-
-            if (msg.replies) {
-                msg.replies.forEach(reply => {
-                    const isMe = reply.senderId === currentUser.uid;
-                    html += `
-                        <div class="${isMe ? 'self-end bg-blue-600 text-white' : 'self-start bg-white text-gray-800'} p-4 rounded-2xl ${isMe ? 'rounded-tr-none' : 'rounded-tl-none'} shadow-sm max-w-[85%]">
-                            <p class="${isMe ? 'font-medium' : 'font-bold'}">${reply.content}</p>
-                        </div>
-                    `;
-                });
-            }
-
-            html += `</div>`;
-            chatHistory.innerHTML = html;
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        };
-
-        window.closeChat = () => {
-            document.getElementById('chat-overlay').classList.add('translate-x-full');
-            selectedMessageId = null;
-        };
-
-        function getRandomNGLColor() {
-            const colors = ['bg-gradient-to-br from-pink-500 to-rose-600', 'bg-gradient-to-br from-orange-400 to-red-500', 'bg-gradient-to-br from-indigo-500 to-purple-600', 'bg-gradient-to-br from-emerald-400 to-teal-600', 'bg-gradient-to-br from-blue-500 to-cyan-500'];
-            return colors[Math.floor(Math.random() * colors.length)];
-        }
-
-        window.switchTab = (tab) => {
-            const globalView = document.getElementById('view-global');
-            const inboxView = document.getElementById('view-inbox');
-            const tabs = { global: document.getElementById('tab-global'), inbox: document.getElementById('tab-inbox') };
-
-            if (tab === 'global') {
-                globalView.classList.remove('hidden'); inboxView.classList.add('hidden');
-                tabs.global.classList.replace('text-black/30', 'text-black');
-                tabs.inbox.classList.replace('text-black', 'text-black/30');
+                container.innerHTML = `<div class="flex flex-col items-center py-20 opacity-30"><i data-lucide="ghost" class="w-16 h-16 mb-4"></i><p class="font-bold">Inbox kosong...</p></div>`;
             } else {
-                globalView.classList.add('hidden'); inboxView.classList.remove('hidden');
-                tabs.inbox.classList.replace('text-black/30', 'text-black');
-                tabs.global.classList.replace('text-black', 'text-black/30');
+                container.innerHTML = messages.map(msg => `<div class="bg-white/70 p-6 rounded-[2.5rem] border border-white/50 mb-4 shadow-sm active:scale-95 transition-all"><p class="text-gray-800 font-bold text-lg">"${msg.content}"</p></div>`).join('');
             }
+            lucide.createIcons();
         };
 
-        window.onYouTubeIframeAPIReady = () => {
-            new YT.Player('player-frame', {
-                height: '0', width: '0', videoId: 'wbz5pGyWOP4',
-                events: { 'onReady': (e) => {
-                    document.body.addEventListener('click', () => { 
-                        e.target.playVideo(); 
-                        document.getElementById('music-icon').classList.add('animate-spin');
-                    }, { once: true });
-                }}
-            });
-        };
-    </script>
-
-    <style>
-        @keyframes mesh { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-        .mesh-bg { background: linear-gradient(-45deg, #FF9A9E, #FAD0C4, #A18CD1, #FBC2EB); background-size: 400% 400%; animation: mesh 12s ease infinite; }
-        .ios-blur { backdrop-filter: blur(25px) saturate(200%); -webkit-backdrop-filter: blur(25px) saturate(200%); }
-        ::-webkit-scrollbar { display: none; }
-        
-        /* Layout Fix */
-        .app-container { height: 100dvh; width: 100vw; display: flex; flex-direction: column; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.2); }
-        @media (min-width: 640px) { 
-            .app-container { height: 800px; width: 400px; border-radius: 3.5rem; border: 8px solid rgba(255,255,255,0.4); } 
-        }
-        
-        .content-area { flex: 1; overflow-y: auto; padding-bottom: 120px; }
-        .nav-active { color: #db2777 !important; transform: scale(1.1); }
-        
-        /* Animation for Overlay */
-        .overlay-transition { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-    </style>
-</head>
-<body class="mesh-bg min-h-screen flex items-center justify-center font-sans antialiased text-gray-900 overflow-hidden">
-
-    <div class="app-container shadow-2xl">
-        
-        <!-- HEADER -->
-        <div class="pt-12 px-8 pb-4 flex justify-between items-end shrink-0 z-10">
-            <div>
-                <h1 class="text-3xl font-black tracking-tighter">AnonChat</h1>
-                <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest">ID: <span id="my-id-display">...</span></p>
-            </div>
-            <button class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform">
-                <i id="music-icon" data-lucide="music" class="w-4 h-4"></i>
-                <div id="player-frame" class="hidden"></div>
-            </button>
-        </div>
-
-        <!-- MAIN CONTENT AREA -->
-        <div class="content-area px-6 pt-4">
-            <!-- VIEW: GLOBAL -->
-            <div id="view-global" class="space-y-6">
-                <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-white/50">
-                    <textarea id="global-input" placeholder="Tulis rahasiamu..." class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-200"></textarea>
-                    <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all">Kirim ke Global</button>
-                </div>
-                <div id="global-list" class="space-y-4"></div>
-            </div>
-
-            <!-- VIEW: INBOX -->
-            <div id="view-inbox" class="hidden animate-in fade-in slide-in-from-right-4">
-                <h2 class="text-3xl font-black tracking-tighter mb-6">Pesan Masuk</h2>
-                <div id="inbox-list" class="space-y-4"></div>
-            </div>
-        </div>
-
-        <!-- BOTTOM NAV BAR -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/90 ios-blur rounded-[2.5rem] shadow-2xl border border-white/50 flex justify-around items-center px-6 z-50">
-            <button id="tab-global" onclick="switchTab('global')" class="flex flex-col items-center space-y-1 text-black nav-active transition-all">
-                <i data-lucide="globe" class="w-6 h-6"></i>
-                <span class="text-[9px] font-black uppercase">Global</span>
-            </button>
-            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-black/30 transition-all">
-                <i data-lucide="message-circle" class="w-6 h-6"></i>
-                <span class="text-[9px] font-black uppercase">Inbox</span>
-                <div id="inbox-badge" class="hidden absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">0</div>
-            </button>
-        </div>
-
-        
-        <!-- PRIVATE MESSAGE MODAL -->
-        <div id="private-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-6 bg-black/20 backdrop-blur-sm">
-            <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
-                <div class="flex justify-between items-start mb-6">
-                    <h3 class="text-xl font-black tracking-tight">Kirim Pesan ke <br><span id="target-anon-name" class="text-pink-600">@anon</span></h3>
-                    <button onclick="closePrivateModal()" class="text-gray-300 hover:text-gray-600"><i data-lucide="x"></i></button>
-                </div>
-                <textarea id="private-input" placeholder="Tulis pesan rahasia..." class="w-full bg-gray-50 rounded-[2rem] p-6 border-none focus:ring-2 ring-pink-500 text-lg font-bold min-h-[150px] mb-6"></textarea>
-                <button id="send-private-btn" onclick="sendPrivate()" class="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-lg shadow-pink-200 active:scale-95 transition-all">Kirim Pesan</button>
-            </div>
-        </div>
-
-        <!-- CHAT OVERLAY (FULL SCREEN INBOX CHAT) -->
-        <div id="chat-overlay" class="fixed inset-0 bg-gray-50 z-[110] translate-x-full overlay-transition flex flex-col">
-            <div class="pt-14 px-8 pb-4 flex items-center space-x-4 border-b border-gray-100 bg-white">
-                <button onclick="closeChat()" class="p-2 -ml-2"><i data-lucide="chevron-left"></i></button>
-                <h3 class="font-black text-xl">Detail Pesan</h3>
-            </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50"></div>
-            <div class="p-6 bg-white border-t border-gray-100">
-                <div class="flex items-center space-x-2 bg-gray-100 rounded-full px-6 py-2">
-                    <input id="reply-input" type="text" placeholder="Balas pesan ini..." class="flex-1 bg-transparent border-none focus:ring-0 font-bold py-3">
-                    <button onclick="sendReply()" class="bg-blue-600 text-white p-3 rounded-full shadow-md active:scale-90 transition-transform">
-                        <i data-lucide="arrow-up" class="w-5 h-5"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <script src="https://www.youtube.com/iframe_api"></script>
-    <script>
-        // Initialization
-        lucide.createIcons();
-        
-        // Fix: Override global function to handle visual active state
-        const baseSwitchTab = window.switchTab;
         window.switchTab = (tab) => {
-            baseSwitchTab(tab);
+            const g = document.getElementById('view-global');
+            const i = document.getElementById('view-inbox');
             const tg = document.getElementById('tab-global');
             const ti = document.getElementById('tab-inbox');
-            if(tab === 'global') {
-                tg.classList.add('nav-active'); tg.classList.remove('text-black/30');
-                ti.classList.remove('nav-active'); ti.classList.add('text-black/30');
+            if (tab === 'global') {
+                g.classList.remove('hidden'); i.classList.add('hidden');
+                tg.classList.add('nav-active'); ti.classList.replace('nav-active', 'text-black/30');
             } else {
-                ti.classList.add('nav-active'); ti.classList.remove('text-black/30');
-                tg.classList.remove('nav-active'); tg.classList.add('text-black/30');
+                g.classList.add('hidden'); i.classList.remove('hidden');
+                ti.classList.add('nav-active'); tg.classList.replace('nav-active', 'text-black/30');
+                window.renderInbox(inboxMessages);
             }
         };
+
+        window.showToast = (text) => {
+            const t = document.getElementById('luxury-toast');
+            t.innerText = text;
+            t.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => t.classList.add('translate-y-20', 'opacity-0'), 2500);
+        };
+
+        window.generateAIIdea = () => {
+            const ideas = ["Apa rahasia terbesarmu?", "Kesan pertama pas liat aku?", "Siapa yang lagi kamu suka?", "Pernah bohong soal apa?"];
+            document.getElementById('global-input').value = ideas[Math.floor(Math.random() * ideas.length)];
+        };
+
+        window.getRandomNGLColor = () => {
+            const colors = ['bg-gradient-to-br from-pink-500 to-rose-600', 'bg-gradient-to-br from-indigo-500 to-purple-600', 'bg-gradient-to-br from-emerald-400 to-teal-600', 'bg-gradient-to-br from-orange-500 to-red-600'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        };
+
+        function updateOnlineCount() {
+            const c = Math.floor(Math.random() * 100) + 150;
+            const el = document.getElementById('online-count');
+            if (el) el.innerText = c + " Online";
+        }
+
+        setInterval(updateOnlineCount, 15000);
+        lucide.createIcons();
+    </script>
+
+    <script>
+        let player;
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(tag);
+        
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('yt-player', {
+                height: '0', width: '0', videoId: 'wbz5pGyWOP4',
+                events: { 'onReady': (e) => {
+                    document.body.addEventListener('click', () => { e.target.playVideo(); }, { once: true });
+                }}
+            });
+        }
     </script>
 </body>
 </html>
