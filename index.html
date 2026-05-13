@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>Global AnonChat - Luxury Edition</title>
-    <link rel="icon" type="image/png" href="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=anon&backgroundColor=b6e3f4">
+    <link rel="icon" type="image/png" href="https://api.dicebear.com/7.x/avataaars/svg?seed=luxury&backgroundColor=b6e3f4">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -40,44 +40,46 @@
                 document.getElementById('my-id-display').innerText = user.uid.slice(0, 6);
                 listenToGlobal();
                 listenToInbox();
-                initPresence(); // Mulai hitung online real-time
+                initPresence(); 
+                trackVisit();
             } else {
-                try {
-                    await signInAnonymously(auth);
-                } catch (e) { console.error("Auth Error:", e); }
+                signInAnonymously(auth).catch(e => console.error("Auth Error:", e));
             }
         });
 
-        // --- SISTEM ONLINE REAL-TIME ---
+        async function trackVisit() {
+            const statsRef = doc(db, "app_stats", "global");
+            try {
+                await updateDoc(statsRef, { totalViews: increment(1) });
+            } catch (e) {
+                await setDoc(statsRef, { totalViews: 1 });
+            }
+
+            onSnapshot(statsRef, (doc) => {
+                if (doc.exists()) {
+                    window.globalTotalViews = doc.data().totalViews || 0;
+                }
+            });
+        }
+
         async function initPresence() {
             if (!currentUser) return;
-            
             const userStatusRef = doc(db, "presence", currentUser.uid);
-
-            // Update status saat pertama masuk
             const updateStatus = async () => {
-                await setDoc(userStatusRef, {
-                    lastActive: serverTimestamp(),
-                }, { merge: true });
+                await setDoc(userStatusRef, { lastActive: serverTimestamp() }, { merge: true });
             };
-
             await updateStatus();
-            setInterval(updateStatus, 30000); // Heartbeat setiap 30 detik
+            setInterval(updateStatus, 30000);
 
-            // Hitung user yang aktif dalam 2 menit terakhir
             const q = query(collection(db, "presence"));
             onSnapshot(q, (snapshot) => {
                 const now = Date.now();
                 const twoMinutesAgo = now - (2 * 60 * 1000);
-                
                 let activeCount = 0;
                 snapshot.forEach((doc) => {
                     const data = doc.data();
-                    if (data.lastActive && data.lastActive.toMillis() > twoMinutesAgo) {
-                        activeCount++;
-                    }
+                    if (data.lastActive && data.lastActive.toMillis() > twoMinutesAgo) activeCount++;
                 });
-                
                 document.getElementById('online-count').innerText = `${activeCount} Online`;
             });
         }
@@ -85,19 +87,15 @@
         window.toggleLike = async (docId) => {
             if (!docId || !currentUser) return;
             const docRef = doc(db, "global_feed", docId);
-            
             try {
                 const snap = await getDoc(docRef);
                 if (!snap.exists()) return;
-                
                 const data = snap.data();
                 const likedBy = data.likedBy || [];
-                
                 if (likedBy.includes(currentUser.uid)) {
-                    showToast("Kamu sudah menyukai ini! ✨");
+                    showToast("Sudah disukai! ✨");
                     return;
                 }
-
                 await updateDoc(docRef, {
                     likedBy: arrayUnion(currentUser.uid),
                     likes: increment(1)
@@ -110,6 +108,7 @@
             document.getElementById('target-anon-name').innerText = name;
             document.getElementById('private-modal').classList.remove('hidden');
             document.getElementById('private-modal').classList.add('flex');
+            document.getElementById('private-input').placeholder = "Tulis pesan rahasia...";
         };
 
         window.closePrivateModal = () => {
@@ -122,10 +121,8 @@
             const input = document.getElementById('private-input');
             const text = input.value.trim();
             if (!text || !activeTargetId || !currentUser) return;
-
             const btn = document.getElementById('send-private-btn');
             btn.disabled = true;
-
             try {
                 await addDoc(collection(db, "private_messages"), {
                     senderId: currentUser.uid,
@@ -133,24 +130,17 @@
                     content: text,
                     timestamp: serverTimestamp()
                 });
-                showToast("Pesan Rahasia Terkirim! 🚀");
+                showToast("Terkirim! 🕊️");
                 closePrivateModal();
-            } catch (e) { 
-                console.error(e); 
-            } finally { 
-                btn.disabled = false; 
-            }
+            } catch (e) { console.error(e); } finally { btn.disabled = false; }
         };
 
         window.sendGlobal = async () => {
             const input = document.getElementById('global-input');
             const text = input.value.trim();
             if (!text || !currentUser) return;
-
             const btn = document.getElementById('send-btn');
             btn.disabled = true;
-            input.value = "";
-
             try {
                 await addDoc(collection(db, "global_feed"), {
                     senderId: currentUser.uid,
@@ -158,11 +148,10 @@
                     timestamp: serverTimestamp(),
                     color: getRandomNGLColor(),
                     likes: 0,
-                    likedBy: [],
-                    views: Math.floor(Math.random() * 10) + 1
+                    likedBy: []
                 });
-            } catch (e) { console.error(e); } 
-            finally { btn.disabled = false; }
+                input.value = "";
+            } catch (e) { console.error(e); } finally { btn.disabled = false; }
         };
 
         function listenToGlobal() {
@@ -180,15 +169,18 @@
             onSnapshot(q, (snapshot) => {
                 inboxMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 inboxMessages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                
                 const badge = document.getElementById('inbox-badge');
                 badge.innerText = inboxMessages.length;
                 badge.classList.toggle('hidden', inboxMessages.length === 0);
+                if (!document.getElementById('view-inbox').classList.contains('hidden')) {
+                    renderInbox(inboxMessages);
+                }
             });
         }
 
         function renderGlobal(messages) {
             const container = document.getElementById('global-list');
+            const totalViews = window.globalTotalViews || 0;
             container.innerHTML = messages.map(msg => {
                 const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
                 const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4`;
@@ -222,7 +214,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-2 bg-black/10 px-3 py-1 rounded-full">
                              <i data-lucide="eye" class="w-3 h-3 text-white/50"></i>
-                             <span class="text-[10px] text-white/50 font-bold">${(msg.views || 0) + (likes * 3)}</span>
+                             <span class="text-[10px] text-white/50 font-bold">${totalViews}</span>
                         </div>
                         <button onclick="toggleLike('${msg.id}')" class="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all active:scale-90 group">
                             <i data-lucide="heart" class="w-4 h-4 text-white ${hasLiked ? 'fill-white' : ''}"></i>
@@ -243,13 +235,23 @@
                     <p class="italic font-bold text-black">Inbox masih kosong...</p>
                 </div>`;
             } else {
-                container.innerHTML = messages.map(msg => `
-                    <div class="bg-white/60 p-6 rounded-[2.5rem] border border-white/50 mb-4 shadow-sm transform transition-all active:scale-95 cursor-pointer hover:bg-white/80">
-                        <div class="flex items-center space-x-2 mb-2">
-                            <span class="text-[8px] font-black bg-pink-500 text-white px-2 py-0.5 rounded-full uppercase">Rahasia Baru</span>
+                container.innerHTML = messages.map(msg => {
+                    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4`;
+                    return `
+                    <div class="bg-white/70 p-6 rounded-[2.5rem] border border-white/50 mb-4 shadow-sm transform transition-all hover:bg-white/90">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-gray-200">
+                                <span class="text-[8px] font-black bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full uppercase tracking-tighter">@anon_${msg.senderId.slice(0,4)}</span>
+                            </div>
+                            <button onclick="openPrivateModal('${msg.senderId}', '@anon_${msg.senderId.slice(0,4)}')" class="flex items-center space-x-1 bg-pink-500 text-white px-4 py-2 rounded-full transition-all active:scale-90">
+                                <i data-lucide="reply" class="w-3 h-3"></i>
+                                <span class="text-[10px] font-bold">Balas</span>
+                            </button>
                         </div>
                         <p class="text-gray-800 font-bold text-lg leading-snug">"${msg.content}"</p>
-                    </div>`).join('');
+                    </div>`;
+                }).join('');
             }
             lucide.createIcons();
         };
@@ -270,7 +272,7 @@
                 inboxView.classList.remove('hidden');
                 ti.classList.add('nav-active'); ti.classList.remove('text-black/30');
                 tg.classList.remove('nav-active'); tg.classList.add('text-black/30');
-                window.renderInbox(inboxMessages);
+                renderInbox(inboxMessages);
             }
         };
 
@@ -281,7 +283,7 @@
             tempInput.select();
             document.execCommand("copy");
             document.body.removeChild(tempInput);
-            showToast("Pesan Berhasil Disalin! ✨");
+            showToast("Disalin! ✨");
         };
 
         window.showToast = (text) => {
@@ -292,12 +294,18 @@
         };
 
         window.getRandomNGLColor = () => {
-            const colors = ['bg-gradient-to-br from-pink-500 to-rose-600', 'bg-gradient-to-br from-orange-400 to-red-500', 'bg-gradient-to-br from-indigo-500 to-purple-600', 'bg-gradient-to-br from-emerald-400 to-teal-600', 'bg-gradient-to-br from-blue-500 to-cyan-500'];
+            const colors = [
+                'bg-gradient-to-br from-pink-500 to-rose-600', 
+                'bg-gradient-to-br from-orange-400 to-red-500', 
+                'bg-gradient-to-br from-indigo-500 to-purple-600', 
+                'bg-gradient-to-br from-emerald-400 to-teal-600', 
+                'bg-gradient-to-br from-blue-500 to-cyan-500'
+            ];
             return colors[Math.floor(Math.random() * colors.length)];
         };
 
         window.generateAIIdea = () => {
-            const ideas = ["Apa rahasia terbesarmu yang belum pernah diceritakan?", "Kalau kamu bisa menghilang, apa hal pertama yang kamu lakukan?", "Siapa orang yang paling kamu rindukan saat ini?", "Apa penyesalan terbesarmu tahun ini?"];
+            const ideas = ["Rahasia terbesarmu?", "Hal tergila hari ini?", "Siapa rindu?", "Penyesalan?", "Crush kamu?"];
             document.getElementById('global-input').value = ideas[Math.floor(Math.random() * ideas.length)];
         };
 
@@ -315,22 +323,17 @@
         .ios-blur { backdrop-filter: blur(25px) saturate(200%); -webkit-backdrop-filter: blur(25px) saturate(200%); }
         ::-webkit-scrollbar { display: none; }
         
-        .app-container { height: 100dvh; width: 100vw; display: flex; flex-direction: column; position: relative; overflow: hidden; background: rgba(255,255,255,0.2); }
-        @media (min-width: 640px) { 
-            .app-container { height: 850px; width: 400px; border-radius: 3.5rem; border: 8px solid rgba(255,255,255,0.4); margin: auto; } 
-        }
+        .app-container { height: 100dvh; width: 100vw; display: flex; flex-direction: column; position: relative; overflow: hidden; background: rgba(255,255,255,0.1); }
+        @media (min-width: 640px) { .app-container { height: 850px; width: 400px; border-radius: 3.5rem; border: 8px solid rgba(255,255,255,0.4); margin: auto; } }
         
         .content-area { flex: 1; overflow-y: auto; padding-bottom: 120px; }
         .nav-active { color: #db2777 !important; }
-        .nav-active i { transform: scale(1.1); transition: all 0.2s; }
         .nav-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
 <body class="mesh-bg min-h-screen flex items-center justify-center font-sans antialiased text-gray-900 overflow-hidden">
 
     <div class="app-container shadow-2xl">
-        
-        <!-- HEADER -->
         <div class="pt-14 px-8 pb-4 flex justify-between items-end shrink-0 z-10">
             <div>
                 <h1 class="text-3xl font-black tracking-tighter">AnonChat</h1>
@@ -339,35 +342,28 @@
                     <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest">ID: <span id="my-id-display">...</span></p>
                 </div>
             </div>
-            <button onclick="showToast('Fitur Premium Akan Segera Datang! 💎')" class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform">
+            <button onclick="showToast('Premium Coming Soon! 💎')" class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform">
                 <i data-lucide="crown" class="w-4 h-4 text-yellow-600"></i>
             </button>
         </div>
 
-        <!-- MAIN CONTENT AREA -->
         <div class="content-area px-6 pt-4">
             <div id="view-global" class="space-y-6">
                 <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-white/50 relative">
-                    <div class="absolute top-4 right-6 flex space-x-2">
-                        <button onclick="generateAIIdea()" class="bg-purple-100 text-purple-600 p-2 rounded-full hover:bg-purple-200 transition-all">
-                            <i data-lucide="sparkles" class="w-4 h-4"></i>
-                        </button>
-                    </div>
+                    <button onclick="generateAIIdea()" class="absolute top-4 right-6 bg-purple-100 text-purple-600 p-2 rounded-full"><i data-lucide="sparkles" class="w-4 h-4"></i></button>
                     <textarea id="global-input" placeholder="Tulis rahasiamu ke publik..." class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-200"></textarea>
                     <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">Kirim ke Global</button>
                 </div>
-                
                 <div id="global-list" class="space-y-4"></div>
             </div>
 
             <div id="view-inbox" class="hidden">
-                <h2 class="text-3xl font-black tracking-tighter mb-6 mt-4 px-2">Pesan Masuk</h2>
+                <h2 class="text-3xl font-black tracking-tighter mb-6 mt-4 px-2">Inbox Rahasia</h2>
                 <div id="inbox-list" class="space-y-4 px-2"></div>
             </div>
         </div>
 
-        <!-- BOTTOM NAV BAR -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/90 ios-blur rounded-[2.5rem] shadow-2xl border border-white/50 flex overflow-hidden z-50">
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/90 ios-blur rounded-[2.5rem] shadow-2xl border border-white/50 flex overflow-hidden z-[999]">
             <div id="tab-global" onclick="switchTab('global')" class="flex-1 nav-btn nav-active">
                 <i data-lucide="globe" class="w-6 h-6"></i>
                 <span class="text-[9px] font-black uppercase mt-1">Global</span>
@@ -381,19 +377,14 @@
             </div>
         </div>
 
-        <!-- TOAST -->
-        <div id="luxury-toast" class="fixed bottom-32 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl transition-all duration-300 opacity-0 translate-y-20 z-[200]">
-            Terkirim! ✨
-        </div>
-
+        <div id="luxury-toast" class="fixed bottom-32 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl transition-all duration-300 opacity-0 translate-y-20 z-[2000]">Terkirim! ✨</div>
     </div>
 
-    <!-- MODAL -->
-    <div id="private-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+    <div id="private-modal" class="hidden fixed inset-0 z-[5000] items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl">
             <div class="flex justify-between items-start mb-6">
-                <h3 class="text-xl font-black tracking-tight leading-tight">Kirim Pesan ke <br><span id="target-anon-name" class="text-pink-600">@anon</span></h3>
-                <button onclick="closePrivateModal()" class="text-gray-300 hover:text-gray-600"><i data-lucide="x"></i></button>
+                <h3 class="text-xl font-black tracking-tight leading-tight">Ke <br><span id="target-anon-name" class="text-pink-600">@anon</span></h3>
+                <button onclick="closePrivateModal()"><i data-lucide="x"></i></button>
             </div>
             <textarea id="private-input" placeholder="Tulis pesan rahasia..." class="w-full bg-gray-50 rounded-[2rem] p-6 border-none focus:ring-2 ring-pink-500 text-lg font-bold min-h-[150px] mb-6"></textarea>
             <button id="send-private-btn" onclick="sendPrivate()" class="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all">Kirim Pesan</button>
@@ -401,7 +392,6 @@
     </div>
 
     <div id="yt-player" class="hidden"></div>
-
     <script>
         let player;
         function onYouTubeIframeAPIReady() {
