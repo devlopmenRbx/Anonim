@@ -21,7 +21,7 @@
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, serverTimestamp, where, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, serverTimestamp, where, doc, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -70,11 +70,51 @@
                     senderId: currentUser.uid,
                     content: text,
                     timestamp: serverTimestamp(),
-                    color: getRandomNGLColor()
+                    color: getRandomNGLColor(),
+                    likes: 0
                 });
             } catch (e) { console.error(e); } 
             finally { btn.disabled = false; }
         };
+
+        window.toggleLike = async (docId) => {
+            try {
+                const docRef = doc(db, "global_feed", docId);
+                await updateDoc(docRef, {
+                    likes: increment(1)
+                });
+            } catch (e) { console.error("Error liking:", e); }
+        };
+
+        window.copyMessage = (text) => {
+            const tempInput = document.createElement("textarea");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            
+            // Notifikasi sederhana tanpa alert
+            const btn = event.currentTarget;
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-white"></i>';
+            lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = originalIcon;
+                lucide.createIcons();
+            }, 2000);
+        };
+
+        function timeAgo(date) {
+            if (!date) return "...";
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return "Baru saja";
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + "m lalu";
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + "j lalu";
+            return Math.floor(hours / 24) + "h lalu";
+        }
 
         // PRIVATE MESSAGE LOGIC (SEND TO INBOX)
         window.openPrivateModal = (targetId, targetName) => {
@@ -166,6 +206,9 @@
             container.innerHTML = messages.map(msg => {
                 const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
                 const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
+                const date = msg.timestamp ? msg.timestamp.toDate() : null;
+                const likes = msg.likes || 0;
+                
                 return `
                 <div class="${msg.color || 'bg-gradient-to-br from-pink-500 to-rose-600'} p-6 rounded-[2.5rem] shadow-lg mb-6 transform transition-all active:scale-[0.97]">
                     <div class="flex items-center justify-between mb-3">
@@ -173,13 +216,27 @@
                             <div class="w-8 h-8 rounded-full bg-white/20 border border-white/30 overflow-hidden">
                                 <img src="${avatarUrl}" alt="Anon" class="w-full h-full object-cover">
                             </div>
-                            <span class="text-[10px] text-white font-black uppercase tracking-widest">@anon_${shortId}</span>
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-white font-black uppercase tracking-widest">@anon_${shortId}</span>
+                                <span class="text-[8px] text-white/70 font-bold">${timeAgo(date)}</span>
+                            </div>
                         </div>
-                        <button onclick="openPrivateModal('${msg.senderId}', '@anon_${shortId}')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
-                            <i data-lucide="send" class="w-4 h-4 text-white"></i>
+                        <div class="flex space-x-2">
+                            <button onclick="copyMessage(\`${msg.content}\`)" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                                <i data-lucide="copy" class="w-4 h-4 text-white"></i>
+                            </button>
+                            <button onclick="openPrivateModal('${msg.senderId}', '@anon_${shortId}')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                                <i data-lucide="send" class="w-4 h-4 text-white"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-white font-bold text-xl leading-tight italic mb-4">"${msg.content}"</p>
+                    <div class="flex items-center justify-end">
+                        <button onclick="toggleLike('${msg.id}')" class="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-full transition-all active:scale-90">
+                            <i data-lucide="heart" class="w-4 h-4 text-white ${likes > 0 ? 'fill-white' : ''}"></i>
+                            <span class="text-white text-xs font-black">${likes}</span>
                         </button>
                     </div>
-                    <p class="text-white font-bold text-xl leading-tight italic">"${msg.content}"</p>
                 </div>`;
             }).join('');
             lucide.createIcons();
