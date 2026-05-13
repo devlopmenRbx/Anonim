@@ -2,15 +2,15 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AnonChat iOS - Premium</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Global AnonChat - NGL Style</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, serverTimestamp, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCWCXK058NvKRUS5ifqWWFUw0n5nN25S-s",
@@ -28,172 +28,199 @@
         const auth = getAuth(app);
 
         let currentUser = null;
-        let messages = [];
-        window.selectedMessageId = null;
-
-        async function startAuth() {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                if (error.code === 'auth/configuration-not-found') {
-                    document.getElementById('error-overlay').classList.remove('hidden');
-                }
-            }
-        }
+        let activeTargetId = null;
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                listenToMessages();
+                document.getElementById('my-id-display').innerText = user.uid.slice(0, 6);
+                listenToGlobal();
+                listenToInbox();
             } else {
-                startAuth();
+                signInAnonymously(auth);
             }
         });
 
-        function listenToMessages() {
-            const q = query(collection(db, "messages"), orderBy("timestamp", "desc"));
-            onSnapshot(q, (snapshot) => {
-                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                renderInbox();
-                updateBadge();
-            });
-        }
+        window.sendGlobal = async () => {
+            const input = document.getElementById('global-input');
+            const text = input.value.trim();
+            if (!text || !currentUser) return;
 
-        window.switchTab = (tab) => {
-            const sendView = document.getElementById('view-send');
-            const inboxView = document.getElementById('view-inbox');
-            const tabSend = document.getElementById('tab-send');
-            const tabInbox = document.getElementById('tab-inbox');
+            const btn = document.getElementById('send-btn');
+            btn.disabled = true;
+            input.value = "";
 
-            if (tab === 'send') {
-                sendView.classList.remove('hidden');
-                inboxView.classList.add('hidden');
-                tabSend.classList.add('text-blue-600');
-                tabInbox.classList.remove('text-blue-600');
-            } else {
-                sendView.classList.add('hidden');
-                inboxView.classList.remove('hidden');
-                tabSend.classList.remove('text-blue-600');
-                tabInbox.classList.add('text-blue-600');
+            try {
+                await addDoc(collection(db, "global_feed"), {
+                    senderId: currentUser.uid,
+                    content: text,
+                    timestamp: serverTimestamp(),
+                    color: getRandomNGLColor()
+                });
+            } catch (e) {
+                console.error(e);
+            } finally {
+                btn.disabled = false;
             }
         };
 
-        window.sendAnonymousMessage = async () => {
-            const input = document.getElementById('message-input');
-            const text = input.value.trim();
-            if (!text) return;
+        window.openPrivateModal = (targetId, targetName) => {
+            activeTargetId = targetId;
+            document.getElementById('target-anon-name').innerText = targetName;
+            document.getElementById('private-modal').classList.remove('hidden');
+            document.getElementById('private-modal').classList.add('flex');
+        };
 
-            const btn = document.getElementById('send-btn');
+        window.closePrivateModal = () => {
+            document.getElementById('private-modal').classList.add('hidden');
+            document.getElementById('private-modal').classList.remove('flex');
+            document.getElementById('private-input').value = "";
+        };
+
+        window.sendPrivate = async () => {
+            const input = document.getElementById('private-input');
+            const text = input.value.trim();
+            if (!text || !currentUser || !activeTargetId) return;
+
+            const btn = document.getElementById('send-private-btn');
             btn.disabled = true;
             btn.innerText = "Mengirim...";
 
             try {
-                await addDoc(collection(db, "messages"), {
+                await addDoc(collection(db, "private_messages"), {
+                    senderId: currentUser.uid,
+                    receiverId: activeTargetId,
                     content: text,
-                    timestamp: serverTimestamp(),
-                    isRead: false,
-                    replies: []
+                    timestamp: serverTimestamp()
                 });
-                input.value = "";
-                showToast("Rahasia terkirim! 🤫");
+                
+                btn.innerText = "Terkirim! ✅";
+                setTimeout(() => {
+                    closePrivateModal();
+                    btn.innerText = "Kirim Pesan";
+                    btn.disabled = false;
+                }, 1500);
             } catch (e) {
-                alert("Gagal mengirim. Cek Firestore Rules.");
-            } finally {
+                console.error(e);
                 btn.disabled = false;
-                btn.innerText = "Kirim!";
+                btn.innerText = "Gagal, Coba Lagi";
             }
         };
 
-        window.sendReply = async () => {
-            const input = document.getElementById('reply-input');
-            const replyText = input.value.trim();
-            if (!replyText || !window.selectedMessageId) return;
+        function listenToGlobal() {
+            const q = query(collection(db, "global_feed"), limit(50)); 
+            onSnapshot(q, (snapshot) => {
+                const messages = snapshot.docs.map(doc => doc.data());
+                messages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                renderGlobal(messages);
+            });
+        }
 
-            try {
-                const msgRef = doc(db, "messages", window.selectedMessageId);
-                await updateDoc(msgRef, {
-                    replies: arrayUnion({
-                        text: replyText,
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    })
-                });
-                input.value = "";
-                openChat(window.selectedMessageId); // Refresh view
-            } catch (e) { console.error(e); }
-        };
+        function listenToInbox() {
+            const q = query(collection(db, "private_messages"), where("receiverId", "==", currentUser.uid));
+            onSnapshot(q, (snapshot) => {
+                const messages = snapshot.docs.map(doc => doc.data());
+                messages.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
 
-        function renderInbox() {
-            const list = document.getElementById('messages-list');
+                const badge = document.getElementById('inbox-badge');
+                if(messages.length > 0) {
+                    badge.classList.remove('hidden');
+                    badge.innerText = messages.length;
+                } else {
+                    badge.classList.add('hidden');
+                }
+                renderInbox(messages);
+            });
+        }
+
+        function renderGlobal(messages) {
+            const container = document.getElementById('global-list');
+            container.innerHTML = messages.map(msg => {
+                const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
+                const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffdfbf`;
+                
+                return `
+                <div class="${msg.color || 'bg-gradient-to-br from-pink-500 to-rose-600'} p-6 rounded-[2.5rem] shadow-lg mb-6 transform transition-all active:scale-[0.97]">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-3 opacity-90">
+                            <div class="w-8 h-8 rounded-full bg-white/20 border border-white/30 overflow-hidden">
+                                <img src="${avatarUrl}" alt="Anon" class="w-full h-full object-cover">
+                            </div>
+                            <span class="text-[10px] text-white font-black uppercase tracking-widest">@anon_${shortId}</span>
+                        </div>
+                        <button onclick="openPrivateModal('${msg.senderId}', '@anon_${shortId}')" class="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                            <i data-lucide="send" class="w-4 h-4 text-white"></i>
+                        </button>
+                    </div>
+                    <p class="text-white font-bold text-xl leading-tight italic">"${msg.content}"</p>
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="flex -space-x-2 opacity-70">
+                             <div class="w-5 h-5 rounded-full border-2 border-white/50 bg-pink-400"></div>
+                             <div class="w-5 h-5 rounded-full border-2 border-white/50 bg-blue-400"></div>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <span class="text-[9px] text-white/50 font-bold">REPLY</span>
+                            <i data-lucide="heart" class="w-4 h-4 text-white fill-white"></i>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function renderInbox(messages) {
+            const container = document.getElementById('inbox-list');
             if (messages.length === 0) {
-                list.innerHTML = `<div class="text-center py-20 text-gray-400 italic">Belum ada pesan...</div>`;
+                container.innerHTML = '<p class="text-center text-gray-400 py-10 italic">Belum ada pesan rahasia...</p>';
                 return;
             }
-
-            list.innerHTML = messages.map(msg => `
-                <div onclick="openChat('${msg.id}')" class="flex items-center p-4 bg-white/60 backdrop-blur-md rounded-3xl mb-3 cursor-pointer active:scale-95 transition-all shadow-sm border border-white/50">
-                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xl mr-4">?</div>
-                    <div class="flex-1 overflow-hidden">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-gray-800">Anonim</span>
-                            <span class="text-[10px] text-gray-400">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Baru'}</span>
-                        </div>
-                        <p class="text-sm text-gray-600 truncate">${msg.content}</p>
+            container.innerHTML = messages.map(msg => `
+                <div class="bg-white/60 p-5 rounded-[2rem] border border-white/50 mb-3 shadow-sm transform transition-all hover:scale-[1.02]">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
+                        <span class="text-[8px] font-black text-pink-600 uppercase">Pesan Baru</span>
                     </div>
-                    ${!msg.isRead ? '<div class="w-2.5 h-2.5 bg-blue-500 rounded-full ml-2 animate-pulse"></div>' : ''}
-                </div>
-            `).join('');
+                    <p class="text-gray-800 font-bold text-lg leading-snug">"${msg.content}"</p>
+                    <span class="text-[9px] text-gray-400 font-bold uppercase mt-3 block tracking-tighter">
+                        Diterima: ${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString() : 'Baru saja'}
+                    </span>
+                </div>`).join('');
         }
 
-        window.openChat = async (id) => {
-            window.selectedMessageId = id;
-            const msg = messages.find(m => m.id === id);
-            if (!msg) return;
+        function getRandomNGLColor() {
+            const colors = [
+                'bg-gradient-to-br from-pink-500 to-rose-600',
+                'bg-gradient-to-br from-orange-400 to-red-500',
+                'bg-gradient-to-br from-indigo-500 to-purple-600',
+                'bg-gradient-to-br from-emerald-400 to-teal-600',
+                'bg-gradient-to-br from-blue-500 to-cyan-500'
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
 
-            if (!msg.isRead) {
-                await updateDoc(doc(db, "messages", id), { isRead: true });
-            }
+        window.switchTab = (tab) => {
+            const globalView = document.getElementById('view-global');
+            const inboxView = document.getElementById('view-inbox');
+            const tabGlobal = document.getElementById('tab-global');
+            const tabInbox = document.getElementById('tab-inbox');
 
-            const chatContent = document.getElementById('chat-content');
-            chatContent.innerHTML = `
-                <div class="flex flex-col space-y-4 p-4 pb-24">
-                    <div class="self-start bg-white text-gray-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] shadow-sm border border-gray-100">
-                        <p class="text-md">${msg.content}</p>
-                    </div>
-                    ${msg.replies ? msg.replies.map(r => `
-                        <div class="self-end bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none max-w-[85%] shadow-md">
-                            <p class="text-md">${r.text}</p>
-                        </div>
-                    `).join('') : ''}
-                </div>
-            `;
-            document.getElementById('chat-detail').classList.remove('translate-x-full');
-        };
-
-        window.closeChat = () => {
-            document.getElementById('chat-detail').classList.add('translate-x-full');
-            window.selectedMessageId = null;
-        };
-
-        function updateBadge() {
-            const count = messages.filter(m => !m.isRead).length;
-            const badge = document.getElementById('inbox-badge');
-            if (count > 0) {
-                badge.innerText = count;
-                badge.classList.remove('hidden');
+            if (tab === 'global') {
+                globalView.classList.remove('hidden');
+                inboxView.classList.add('hidden');
+                tabGlobal.classList.add('text-black');
+                tabGlobal.classList.remove('text-black/30');
+                tabInbox.classList.add('text-black/30');
+                tabInbox.classList.remove('text-black');
             } else {
-                badge.classList.add('hidden');
+                globalView.classList.add('hidden');
+                inboxView.classList.remove('hidden');
+                tabInbox.classList.add('text-black');
+                tabInbox.classList.remove('text-black/30');
+                tabGlobal.classList.add('text-black/30');
+                tabGlobal.classList.remove('text-black');
             }
-        }
+        };
 
-        function showToast(msg) {
-            const t = document.createElement('div');
-            t.className = "fixed top-12 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl text-white px-6 py-3 rounded-full text-sm font-bold z-[100] animate-bounce";
-            t.innerText = msg;
-            document.body.appendChild(t);
-            setTimeout(() => t.remove(), 2500);
-        }
-
-        // MUSIC PLAYER LOGIC
         let player;
         window.onYouTubeIframeAPIReady = () => {
             player = new YT.Player('player-frame', {
@@ -202,25 +229,11 @@
                     'onReady': (e) => {
                         document.body.addEventListener('click', () => {
                             e.target.playVideo();
-                            document.getElementById('play-icon').setAttribute('data-lucide', 'pause');
-                            lucide.createIcons();
+                            document.getElementById('music-icon').classList.add('animate-spin');
                         }, { once: true });
                     }
                 }
             });
-        };
-
-        window.toggleMusic = () => {
-            const state = player.getPlayerState();
-            const btn = document.getElementById('play-icon');
-            if (state === 1) { 
-                player.pauseVideo();
-                btn.setAttribute('data-lucide', 'play');
-            } else { 
-                player.playVideo();
-                btn.setAttribute('data-lucide', 'pause');
-            }
-            lucide.createIcons();
         };
     </script>
 
@@ -239,113 +252,95 @@
             backdrop-filter: blur(25px) saturate(200%);
             -webkit-backdrop-filter: blur(25px) saturate(200%);
         }
-        /* Mobile-First Responsive Height */
-        .app-container {
-            height: 100vh;
-            width: 100vw;
-        }
-        @media (min-width: 640px) {
-            .app-container {
-                height: 850px;
-                width: 400px;
-                border-radius: 3.5rem;
-            }
-        }
         ::-webkit-scrollbar { display: none; }
+        
+        .app-container { height: 100vh; width: 100vw; display: flex; flex-direction: column; position: relative; }
+        @media (min-width: 640px) {
+            .app-container { height: 850px; width: 400px; border-radius: 3.5rem; margin: 20px; border: 8px solid rgba(255,255,255,0.3); }
+        }
     </style>
 </head>
 <body class="mesh-bg min-h-screen flex items-center justify-center font-sans antialiased text-gray-900 overflow-hidden">
 
-    <!-- ERROR SETUP OVERLAY -->
-    <div id="error-overlay" class="hidden fixed inset-0 z-[200] bg-white/90 backdrop-blur-lg flex items-center justify-center p-8 text-center">
-        <div class="max-w-xs">
-            <i data-lucide="alert-circle" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
-            <h3 class="text-xl font-bold mb-2">Login Anonim Belum Aktif</h3>
-            <p class="text-gray-600 text-sm mb-6">Aktifkan "Anonymous" di tab Authentication pada Firebase Console Anda.</p>
-            <button onclick="location.reload()" class="bg-black text-white px-8 py-3 rounded-full font-bold">Coba Lagi</button>
-        </div>
-    </div>
-
-    <!-- MAIN APP WRAPPER -->
-    <div class="app-container relative bg-white/40 ios-blur border border-white/50 shadow-2xl flex flex-col overflow-hidden transition-all duration-500">
+    <div class="app-container bg-white/30 ios-blur shadow-2xl overflow-hidden">
         
-        <!-- Music Player Widget -->
-        <div class="px-6 sm:px-8 pt-10 pb-4">
-            <div class="bg-black/10 p-4 rounded-[2rem] flex items-center space-x-4 border border-white/20 shadow-inner">
-                <div class="w-12 h-12 bg-white/40 rounded-2xl flex items-center justify-center relative overflow-hidden">
+        <!-- HEADER -->
+        <div class="pt-14 px-8 pb-4 flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-black tracking-tighter">AnonChat</h1>
+                <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest">ID: <span id="my-id-display">...</span></p>
+            </div>
+            <div class="flex space-x-3">
+                <button class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm">
+                    <i id="music-icon" data-lucide="music" class="w-4 h-4"></i>
                     <div id="player-frame"></div>
-                    <i data-lucide="music" class="text-white w-6 h-6 animate-pulse"></i>
-                </div>
-                <div class="flex-1">
-                    <p class="text-[10px] font-bold text-black/30 uppercase">Memutar Sekarang</p>
-                    <p class="text-sm font-bold text-gray-800 truncate">Lofi Vibes • Study</p>
-                </div>
-                <button onclick="toggleMusic()" class="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center active:scale-90 transition-transform">
-                    <i id="play-icon" data-lucide="play" class="w-5 h-5 fill-black"></i>
                 </button>
             </div>
         </div>
 
-        <!-- MAIN VIEWS -->
-        <div class="flex-1 overflow-y-auto px-6 sm:px-8 pb-32">
+        <!-- MAIN CONTENT -->
+        <div class="flex-1 overflow-y-auto px-6 pt-4 pb-32">
             
-            <!-- VIEW: SEND -->
-            <div id="view-send" class="space-y-6 sm:space-y-8 pt-6 animate-in fade-in duration-700">
-                <div class="text-center">
-                    <div class="w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-[2rem] border-4 border-white shadow-xl mb-4 bg-white/50 p-2 overflow-hidden">
-                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="w-full h-full rounded-xl" alt="P">
+            <!-- VIEW: GLOBAL FEED -->
+            <div id="view-global" class="space-y-6">
+                <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-white/50">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white font-black italic">G</div>
+                        <span class="text-sm font-bold text-black/30 italic uppercase tracking-tighter">Kirim Pesan Global...</span>
                     </div>
-                    <h2 class="text-2xl font-black">@kamu_anon</h2>
-                    <p class="text-gray-500 font-medium">kirim pesan rahasia padaku!</p>
+                    <textarea id="global-input" placeholder="Apa yang ingin kamu katakan secara rahasia?" 
+                              class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-200"></textarea>
+                    <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all shadow-lg">
+                        Kirim Sekarang!
+                    </button>
                 </div>
 
-                <div class="bg-white/60 rounded-[2.5rem] p-6 sm:p-8 shadow-inner border border-white/50 relative">
-                    <div class="bg-blue-600 text-white text-[10px] font-black px-4 py-1 rounded-full absolute -top-3 left-1/2 -translate-x-1/2 shadow-lg">TANYA APA SAJA</div>
-                    <p class="text-lg font-bold text-gray-800 text-center mb-6 leading-tight italic">"Sesuatu yang belum pernah kau katakan padaku?"</p>
-                    <textarea id="message-input" placeholder="Tulis di sini..." class="w-full bg-transparent border-none focus:ring-0 text-lg text-gray-800 h-24 resize-none placeholder:text-gray-400"></textarea>
-                </div>
-
-                <button id="send-btn" onclick="sendAnonymousMessage()" class="w-full bg-black text-white py-4 sm:py-5 rounded-full font-black text-lg shadow-2xl active:scale-95 transition-all">
-                    Kirim Pesan!
-                </button>
+                <div id="global-list" class="space-y-4"></div>
             </div>
 
             <!-- VIEW: INBOX -->
-            <div id="view-inbox" class="hidden pt-6 animate-in slide-in-from-right duration-500">
-                <h2 class="text-4xl font-black mb-8">Inbox</h2>
-                <div id="messages-list" class="space-y-4 pb-10"></div>
+            <div id="view-inbox" class="hidden animate-in fade-in slide-in-from-right-4">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-3xl font-black tracking-tighter">Inbox</h2>
+                    <span class="bg-black text-white text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-widest">Rahasia</span>
+                </div>
+                <div id="inbox-list" class="space-y-4"></div>
             </div>
         </div>
 
-        <!-- TAB BAR (STICKY BOTTOM) -->
-        <div class="absolute bottom-0 w-full h-24 bg-white/30 ios-blur border-t border-white/20 flex justify-around items-center px-10 pb-6">
-            <button id="tab-send" onclick="switchTab('send')" class="flex flex-col items-center space-y-1 text-blue-600 transition-colors">
-                <i data-lucide="send" class="w-7 h-7"></i>
-                <span class="text-[10px] font-black">KIRIM</span>
-            </button>
-            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-gray-400 transition-colors">
-                <i data-lucide="mail" class="w-7 h-7"></i>
-                <span class="text-[10px] font-black">INBOX</span>
-                <span id="inbox-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">0</span>
-            </button>
+        <!-- MODAL PRIVATE MESSAGE -->
+        <div id="private-modal" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-md items-center justify-center p-6">
+            <div class="bg-white w-full max-w-sm rounded-[3rem] overflow-hidden shadow-2xl">
+                <div class="bg-gradient-to-br from-pink-500 to-rose-600 p-8 text-center text-white">
+                    <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="lock" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-xl font-black tracking-tighter">Kirim Pesan Privat</h3>
+                    <p class="text-[10px] font-bold opacity-70 mt-1">Ke: <span id="target-anon-name">@anon_xxxx</span></p>
+                </div>
+                <div class="p-8">
+                    <textarea id="private-input" placeholder="Tulis pesan rahasiamu..." 
+                              class="w-full h-32 bg-gray-50 rounded-2xl p-4 border-none focus:ring-2 focus:ring-pink-500 text-gray-800 font-bold resize-none mb-6"></textarea>
+                    <div class="flex space-x-3">
+                        <button onclick="closePrivateModal()" class="flex-1 bg-gray-100 text-gray-400 py-4 rounded-full font-black text-xs uppercase">Batal</button>
+                        <button id="send-private-btn" onclick="sendPrivate()" class="flex-[2] bg-black text-white py-4 rounded-full font-black text-xs uppercase shadow-lg">Kirim</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- CHAT DETAIL OVERLAY -->
-        <div id="chat-detail" class="absolute inset-0 bg-gray-50 z-[100] translate-x-full transition-transform duration-500 flex flex-col">
-            <div class="pt-12 px-6 pb-4 bg-white border-b border-gray-100 flex items-center justify-between">
-                <button onclick="closeChat()" class="p-2 text-blue-600 active:scale-90">
-                    <i data-lucide="chevron-left" class="w-8 h-8"></i>
-                </button>
-                <div class="font-bold text-lg">Chat Anonim</div>
-                <div class="w-12"></div>
-            </div>
-            <div id="chat-content" class="flex-1 overflow-y-auto"></div>
-            <div class="p-4 pb-10 bg-white border-t border-gray-100 flex items-center space-x-3">
-                <input id="reply-input" type="text" placeholder="Balas anonim ini..." class="flex-1 bg-gray-100 border-none rounded-full px-6 py-4 focus:ring-2 focus:ring-blue-500 text-sm">
-                <button onclick="sendReply()" class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg active:scale-90 transition-transform">
-                    <i data-lucide="arrow-up" class="w-6 h-6"></i>
-                </button>
-            </div>
+        <!-- BOTTOM NAV -->
+        <div class="absolute bottom-10 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/80 ios-blur rounded-[2.5rem] shadow-2xl border border-white flex justify-around items-center px-6 z-50">
+            <button id="tab-global" onclick="switchTab('global')" class="flex flex-col items-center space-y-1 text-black">
+                <i data-lucide="globe" class="w-6 h-6"></i>
+                <span class="text-[9px] font-black uppercase">Global</span>
+            </button>
+            <div class="w-[1px] h-8 bg-black/5"></div>
+            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-black/30">
+                <i data-lucide="message-circle" class="w-6 h-6"></i>
+                <span class="text-[9px] font-black uppercase">Inbox</span>
+                <div id="inbox-badge" class="hidden absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">0</div>
+            </button>
         </div>
     </div>
 
