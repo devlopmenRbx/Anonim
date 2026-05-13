@@ -4,8 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
+    <!-- Meta Tags untuk WhatsApp/Sosial Media (Agar muncul Icon) -->
     <title>Global AnonChat - Luxury Edition</title>
-    <link rel="icon" type="image/png" href="https://api.dicebear.com/7.x/avataaars/svg?seed=luxury&backgroundColor=b6e3f4">
+    <meta name="description" content="Kirim pesan rahasia secara anonim dan temukan rahasia lainnya secara global!">
+    <meta property="og:title" content="Global AnonChat - Luxury Edition">
+    <meta property="og:description" content="Kirim pesan rahasia secara anonim di Global Feed!">
+    <meta property="og:image" content="https://api.dicebear.com/7.x/avataaars/png?seed=luxury&backgroundColor=b6e3f4">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <!-- Ikon Browser & iPhone -->
+    <link rel="icon" type="image/png" href="https://api.dicebear.com/7.x/avataaars/png?seed=luxury&backgroundColor=b6e3f4">
+    <link rel="apple-touch-icon" href="https://api.dicebear.com/7.x/avataaars/png?seed=luxury&backgroundColor=b6e3f4">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -183,7 +193,6 @@
             const totalViews = window.globalTotalViews || 0;
             container.innerHTML = messages.map(msg => {
                 const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
-                // STABLE HUMAN AVATAR URL
                 const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4`;
                 const likes = msg.likes || 0;
                 const hasLiked = msg.likedBy && msg.likedBy.includes(currentUser?.uid);
