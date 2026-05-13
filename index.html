@@ -183,6 +183,7 @@
             const totalViews = window.globalTotalViews || 0;
             container.innerHTML = messages.map(msg => {
                 const shortId = msg.senderId ? msg.senderId.slice(0, 4) : 'xxxx';
+                // STABLE HUMAN AVATAR URL
                 const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.senderId}&backgroundColor=b6e3f4`;
                 const likes = msg.likes || 0;
                 const hasLiked = msg.likedBy && msg.likedBy.includes(currentUser?.uid);
