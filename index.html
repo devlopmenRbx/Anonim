@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnonChat iOS - Premium</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // Konfigurasi Firebase Milik Anda
+        const firebaseConfig = {
+            apiKey: "AIzaSyCWCXK058NvKRUS5ifqWWFUw0n5nN25S-s",
+            authDomain: "anonim-a20a5.firebaseapp.com",
+            databaseURL: "https://anonim-a20a5-default-rtdb.firebaseio.com",
+            projectId: "anonim-a20a5",
+            storageBucket: "anonim-a20a5.firebasestorage.app",
+            messagingSenderId: "680990138057",
+            appId: "1:680990138057:web:c4cf29e026467a05eff718",
+            measurementId: "G-X12LBR4XNY"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let currentUser = null;
+        let messages = [];
+        window.selectedMessageId = null;
+
+        // Inisialisasi Auth dengan Proteksi Error
+        async function startAuth() {
+            try {
+                const userCredential = await signInAnonymously(auth);
+                console.log("Authenticated as:", userCredential.user.uid);
+            } catch (error) {
+                console.error("Auth Error:", error.code);
+                if (error.code === 'auth/configuration-not-found') {
+                    showErrorMessage("Fitur 'Anonymous Sign-in' belum diaktifkan di Firebase Console > Authentication.");
+                }
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                listenToMessages();
+            } else {
+                startAuth();
+            }
+        });
+
+        function listenToMessages() {
+            // Menggunakan koleksi 'messages' di Firestore
+            const q = query(collection(db, "messages"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (snapshot) => {
+                messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderInbox();
+                updateBadge();
+            }, (err) => {
+                console.error("Firestore Listen Error:", err);
+                if (err.code === 'permission-denied') {
+                    showErrorMessage("Akses ditolak. Pastikan 'Firestore Rules' diatur ke Public/Test Mode.");
+                }
+            });
+        }
+
+        window.switchTab = (tab) => {
+            const sendView = document.getElementById('view-send');
+            const inboxView = document.getElementById('view-inbox');
+            const tabSend = document.getElementById('tab-send');
+            const tabInbox = document.getElementById('tab-inbox');
+
+            if (tab === 'send') {
+                sendView.classList.remove('hidden');
+                inboxView.classList.add('hidden');
+                tabSend.classList.add('text-blue-600');
+                tabInbox.classList.remove('text-blue-600');
+            } else {
+                sendView.classList.add('hidden');
+                inboxView.classList.remove('hidden');
+                tabSend.classList.remove('text-blue-600');
+                tabInbox.classList.add('text-blue-600');
+            }
+        };
+
+        window.sendAnonymousMessage = async () => {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const btn = document.getElementById('send-btn');
+            btn.disabled = true;
+            btn.innerText = "Mengirim...";
+
+            try {
+                await addDoc(collection(db, "messages"), {
+                    content: text,
+                    timestamp: serverTimestamp(),
+                    isRead: false,
+                    replies: []
+                });
+                input.value = "";
+                showToast("Rahasia terkirim! 🤫");
+            } catch (e) {
+                showErrorMessage("Gagal mengirim. Periksa Firestore Rules.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Kirim!";
+            }
+        };
+
+        window.sendReply = async () => {
+            const input = document.getElementById('reply-input');
+            const replyText = input.value.trim();
+            if (!replyText || !window.selectedMessageId) return;
+
+            try {
+                const msgRef = doc(db, "messages", window.selectedMessageId);
+                await updateDoc(msgRef, {
+                    replies: arrayUnion({
+                        text: replyText,
+                        sender: 'me',
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    })
+                });
+                input.value = "";
+                // Local UI Update for smooth feel
+                const chatContent = document.getElementById('chat-content');
+                const replyDiv = document.createElement('div');
+                replyDiv.className = "self-end bg-blue-600 text-white p-4 rounded-[1.5rem] rounded-tr-none max-w-[85%] shadow-md mb-2 animate-in slide-in-from-right";
+                replyDiv.innerHTML = `<p class="text-md">${replyText}</p>`;
+                chatContent.querySelector('.chat-inner').appendChild(replyDiv);
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        function renderInbox() {
+            const list = document.getElementById('messages-list');
+            if (messages.length === 0) {
+                list.innerHTML = `<div class="text-center py-20 text-gray-400 italic">Belum ada pesan masuk...</div>`;
+                return;
+            }
+
+            list.innerHTML = messages.map(msg => `
+                <div onclick="openChat('${msg.id}')" class="flex items-center p-4 bg-white/60 backdrop-blur-md rounded-[2rem] mb-3 cursor-pointer active:scale-95 transition-all shadow-sm border border-white/50">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-pink-500 to-yellow-500 flex items-center justify-center text-white font-bold text-xl mr-4 shadow-inner">?</div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-gray-800">Anonim</span>
+                            <span class="text-[10px] text-gray-400 font-medium">${msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Baru'}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 truncate max-w-[180px]">${msg.content}</p>
+                    </div>
+                    ${!msg.isRead ? '<div class="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>' : ''}
+                </div>
+            `).join('');
+        }
+
+        window.openChat = async (id) => {
+            window.selectedMessageId = id;
+            const msg = messages.find(m => m.id === id);
+            if (!msg) return;
+
+            if (!msg.isRead) {
+                await updateDoc(doc(db, "messages", id), { isRead: true });
+            }
+
+            const chatContent = document.getElementById('chat-content');
+            chatContent.innerHTML = `
+                <div class="flex flex-col space-y-4 p-4 pb-24 chat-inner">
+                    <div class="self-start bg-white text-gray-800 p-4 rounded-[1.5rem] rounded-tl-none max-w-[85%] shadow-sm border border-gray-100">
+                        <p class="text-md">${msg.content}</p>
+                    </div>
+                    ${msg.replies ? msg.replies.map(r => `
+                        <div class="self-end bg-blue-600 text-white p-4 rounded-[1.5rem] rounded-tr-none max-w-[85%] shadow-md">
+                            <p class="text-md">${r.text}</p>
+                        </div>
+                    `).join('') : ''}
+                </div>
+            `;
+            document.getElementById('chat-detail').classList.remove('translate-x-full');
+        };
+
+        window.closeChat = () => {
+            document.getElementById('chat-detail').classList.add('translate-x-full');
+            window.selectedMessageId = null;
+        };
+
+        function updateBadge() {
+            const count = messages.filter(m => !m.isRead).length;
+            const badge = document.getElementById('inbox-badge');
+            if (count > 0) {
+                badge.innerText = count;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function showToast(msg) {
+            const t = document.createElement('div');
+            t.className = "fixed bottom-28 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xl text-white px-6 py-3 rounded-full text-sm font-bold z-[100] animate-bounce";
+            t.innerText = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
+
+        function showErrorMessage(msg) {
+            const errDiv = document.getElementById('error-overlay');
+            errDiv.querySelector('p').innerText = msg;
+            errDiv.classList.remove('hidden');
+        }
+
+        let player;
+        window.onYouTubeIframeAPIReady = () => {
+            player = new YT.Player('player-frame', {
+                height: '0', width: '0', videoId: 'jfKfPfyJRdk',
+                events: {
+                    'onReady': (e) => {
+                        document.body.addEventListener('click', () => {
+                            e.target.playVideo();
+                            document.getElementById('play-icon').setAttribute('data-lucide', 'pause');
+                            lucide.createIcons();
+                        }, { once: true });
+                    }
+                }
+            });
+        };
+
+        window.toggleMusic = () => {
+            const state = player.getPlayerState();
+            const btn = document.getElementById('play-icon');
+            if (state === 1) { 
+                player.pauseVideo();
+                btn.setAttribute('data-lucide', 'play');
+            } else { 
+                player.playVideo();
+                btn.setAttribute('data-lucide', 'pause');
+            }
+            lucide.createIcons();
+        };
+    </script>
+
+    <style>
+        @keyframes mesh {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .mesh-bg {
+            background: linear-gradient(-45deg, #FF9A9E, #FAD0C4, #A18CD1, #FBC2EB);
+            background-size: 400% 400%;
+            animation: mesh 12s ease infinite;
+        }
+        .ios-blur {
+            backdrop-filter: blur(25px) saturate(200%);
+            -webkit-backdrop-filter: blur(25px) saturate(200%);
+        }
+        .ios-shadow {
+            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.15);
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="mesh-bg min-h-screen flex items-center justify-center p-4 font-sans antialiased text-gray-900 overflow-hidden">
+
+    <!-- ERROR OVERLAY -->
+    <div id="error-overlay" class="hidden fixed inset-0 z-[200] bg-white/90 backdrop-blur-lg flex items-center justify-center p-8 text-center">
+        <div class="max-w-xs">
+            <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="alert-circle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">Setup Dibutuhkan</h3>
+            <p class="text-gray-600 text-sm mb-6"></p>
+            <button onclick="location.reload()" class="bg-black text-white px-8 py-3 rounded-full font-bold">Coba Lagi</button>
+        </div>
+    </div>
+
+    <div class="relative w-full max-w-md h-[820px] bg-white/40 ios-blur rounded-[3.5rem] border border-white/50 ios-shadow flex flex-col overflow-hidden">
+        
+        <!-- Music Player Widget -->
+        <div class="px-8 pt-10 pb-4">
+            <div class="bg-black/10 p-4 rounded-[2.5rem] flex items-center space-x-4 border border-white/20 shadow-inner">
+                <div class="w-12 h-12 bg-white/40 rounded-2xl flex items-center justify-center relative overflow-hidden">
+                    <div id="player-frame"></div>
+                    <i data-lucide="music" class="text-white w-6 h-6 animate-pulse"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-[10px] font-bold text-black/30 uppercase tracking-widest">Memutar Sekarang</p>
+                    <p class="text-sm font-bold text-gray-800">Lofi Vibes • Study</p>
+                </div>
+                <button onclick="toggleMusic()" class="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center active:scale-90 transition-transform">
+                    <i id="play-icon" data-lucide="play" class="w-5 h-5 fill-black"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN VIEWS -->
+        <div class="flex-1 overflow-y-auto px-8 pb-32">
+            
+            <!-- VIEW: SEND -->
+            <div id="view-send" class="space-y-8 pt-6 animate-in fade-in duration-700">
+                <div class="text-center">
+                    <div class="w-28 h-28 mx-auto rounded-[2.5rem] border-4 border-white shadow-xl overflow-hidden mb-4 bg-white/50 p-2">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="w-full h-full rounded-2xl" alt="P">
+                    </div>
+                    <h2 class="text-2xl font-black tracking-tight">@kamu_anon</h2>
+                    <p class="text-gray-500 font-medium">kirim pesan rahasia padaku!</p>
+                </div>
+
+                <div class="bg-white/60 rounded-[3rem] p-8 shadow-inner border border-white/50 relative">
+                    <div class="bg-blue-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full absolute -top-3 left-1/2 -translate-x-1/2 shadow-lg">TANYA APA SAJA</div>
+                    <p class="text-xl font-bold text-gray-800 text-center mb-6 leading-tight italic">"Sesuatu yang belum pernah kau katakan padaku?"</p>
+                    <textarea id="message-input" placeholder="Tulis di sini..." class="w-full bg-transparent border-none focus:ring-0 text-lg text-gray-800 h-24 resize-none placeholder:text-gray-400"></textarea>
+                </div>
+
+                <button id="send-btn" onclick="sendAnonymousMessage()" class="w-full bg-black text-white py-5 rounded-[2rem] font-black text-lg shadow-2xl active:scale-95 transition-all">
+                    Kirim Pesan!
+                </button>
+            </div>
+
+            <!-- VIEW: INBOX -->
+            <div id="view-inbox" class="hidden pt-6 animate-in slide-in-from-right duration-500">
+                <h2 class="text-4xl font-black mb-8 tracking-tighter">Inbox</h2>
+                <div id="messages-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- TAB BAR -->
+        <div class="absolute bottom-0 w-full h-24 bg-white/30 ios-blur border-t border-white/20 flex justify-around items-center px-12 pb-6">
+            <button id="tab-send" onclick="switchTab('send')" class="flex flex-col items-center space-y-1 text-blue-600 transition-colors">
+                <i data-lucide="send" class="w-7 h-7"></i>
+                <span class="text-[10px] font-black">KIRIM</span>
+            </button>
+            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-gray-400 transition-colors">
+                <i data-lucide="mail" class="w-7 h-7"></i>
+                <span class="text-[10px] font-black">INBOX</span>
+                <span id="inbox-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">0</span>
+            </button>
+        </div>
+
+        <!-- CHAT DETAIL OVERLAY -->
+        <div id="chat-detail" class="absolute inset-0 bg-gray-50 z-[60] translate-x-full transition-transform duration-500 flex flex-col">
+            <div class="pt-12 px-6 pb-4 bg-white border-b border-gray-100 flex items-center">
+                <button onclick="closeChat()" class="p-2 text-blue-600 active:scale-90 transition-transform">
+                    <i data-lucide="chevron-left" class="w-8 h-8"></i>
+                </button>
+                <div class="flex-1 text-center font-bold text-lg" id="chat-title">Chat Anonim</div>
+                <div class="w-12"></div>
+            </div>
+            <div id="chat-content" class="flex-1 overflow-y-auto bg-gray-50"></div>
+            <div class="p-4 pb-10 bg-white border-t border-gray-100 flex items-center space-x-3">
+                <input id="reply-input" type="text" placeholder="Balas anonim ini..." class="flex-1 bg-gray-100 border-none rounded-full px-6 py-4 focus:ring-2 focus:ring-blue-500 text-sm">
+                <button onclick="sendReply()" class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg">
+                    <i data-lucide="arrow-up" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
