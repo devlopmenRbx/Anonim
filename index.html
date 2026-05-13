@@ -279,92 +279,118 @@
         .mesh-bg { background: linear-gradient(-45deg, #FF9A9E, #FAD0C4, #A18CD1, #FBC2EB); background-size: 400% 400%; animation: mesh 12s ease infinite; }
         .ios-blur { backdrop-filter: blur(25px) saturate(200%); -webkit-backdrop-filter: blur(25px) saturate(200%); }
         ::-webkit-scrollbar { display: none; }
-        .app-container { height: 100vh; width: 100vw; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-        @media (min-width: 640px) { .app-container { height: 850px; width: 400px; border-radius: 3.5rem; border: 8px solid rgba(255,255,255,0.3); } }
+        
+        /* Layout Fix */
+        .app-container { height: 100dvh; width: 100vw; display: flex; flex-direction: column; position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.2); }
+        @media (min-width: 640px) { 
+            .app-container { height: 800px; width: 400px; border-radius: 3.5rem; border: 8px solid rgba(255,255,255,0.4); } 
+        }
+        
+        .content-area { flex: 1; overflow-y: auto; padding-bottom: 120px; }
+        .nav-active { color: #db2777 !important; transform: scale(1.1); }
+        
+        /* Animation for Overlay */
+        .overlay-transition { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="mesh-bg min-h-screen flex items-center justify-center font-sans antialiased text-gray-900 overflow-hidden">
 
-    <div class="app-container bg-white/30 ios-blur shadow-2xl">
+    <div class="app-container shadow-2xl">
         
         <!-- HEADER -->
-        <div class="pt-14 px-8 pb-4 flex justify-between items-end">
+        <div class="pt-12 px-8 pb-4 flex justify-between items-end shrink-0 z-10">
             <div>
                 <h1 class="text-3xl font-black tracking-tighter">AnonChat</h1>
                 <p class="text-[10px] font-bold text-black/40 uppercase tracking-widest">ID: <span id="my-id-display">...</span></p>
             </div>
-            <button class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm">
+            <button class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform">
                 <i id="music-icon" data-lucide="music" class="w-4 h-4"></i>
-                <div id="player-frame"></div>
+                <div id="player-frame" class="hidden"></div>
             </button>
         </div>
 
-        <!-- MAIN CONTENT -->
-        <div class="flex-1 overflow-y-auto px-6 pt-4 pb-32">
+        <!-- MAIN CONTENT AREA -->
+        <div class="content-area px-6 pt-4">
             <!-- VIEW: GLOBAL -->
             <div id="view-global" class="space-y-6">
                 <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border border-white/50">
-                    <textarea id="global-input" placeholder="Kirim pesan ke feed global..." class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-200"></textarea>
-                    <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all">Kirim!</button>
+                    <textarea id="global-input" placeholder="Tulis rahasiamu..." class="w-full bg-transparent border-none focus:ring-0 text-xl font-bold text-gray-800 h-24 resize-none placeholder:text-gray-200"></textarea>
+                    <button id="send-btn" onclick="sendGlobal()" class="w-full bg-black text-white py-4 rounded-full font-black text-sm uppercase tracking-widest active:scale-95 transition-all">Kirim ke Global</button>
                 </div>
                 <div id="global-list" class="space-y-4"></div>
             </div>
 
             <!-- VIEW: INBOX -->
             <div id="view-inbox" class="hidden animate-in fade-in slide-in-from-right-4">
-                <h2 class="text-3xl font-black tracking-tighter mb-6">Inbox</h2>
+                <h2 class="text-3xl font-black tracking-tighter mb-6">Pesan Masuk</h2>
                 <div id="inbox-list" class="space-y-4"></div>
             </div>
         </div>
 
-        <!-- MODAL PRIVATE SEND -->
-        <div id="private-modal" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-md items-center justify-center p-6">
-            <div class="bg-white w-full max-w-sm rounded-[3rem] overflow-hidden shadow-2xl">
-                <div class="bg-gradient-to-br from-pink-500 to-rose-600 p-8 text-center text-white">
-                    <h3 class="text-xl font-black tracking-tighter">Kirim Pesan Privat</h3>
-                    <p class="text-[10px] font-bold opacity-70 mt-1">Ke: <span id="target-anon-name">...</span></p>
-                </div>
-                <div class="p-8">
-                    <textarea id="private-input" placeholder="Tulis pesan rahasia..." class="w-full h-32 bg-gray-50 rounded-2xl p-4 border-none focus:ring-2 focus:ring-pink-500 text-gray-800 font-bold resize-none mb-6"></textarea>
-                    <div class="flex space-x-3">
-                        <button onclick="closePrivateModal()" class="flex-1 bg-gray-100 text-gray-400 py-4 rounded-full font-black text-xs uppercase">Batal</button>
-                        <button id="send-private-btn" onclick="sendPrivate()" class="flex-[2] bg-black text-white py-4 rounded-full font-black text-xs uppercase">Kirim</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- CHAT OVERLAY (REPLY VIEW) -->
-        <div id="chat-overlay" class="fixed inset-0 z-[110] bg-gray-50 flex flex-col translate-x-full transition-transform duration-300 ease-in-out">
-            <div class="pt-14 px-6 pb-4 bg-white border-b flex items-center">
-                <button onclick="closeChat()" class="p-2 -ml-2 text-blue-600"><i data-lucide="chevron-left" class="w-8 h-8"></i></button>
-                <h3 class="flex-1 text-center font-black text-lg">Pesan Rahasia</h3>
-                <div class="w-8"></div>
-            </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50"></div>
-            <div class="p-6 bg-white border-t flex items-center space-x-3">
-                <input id="reply-input" type="text" placeholder="Balas rahasia..." class="flex-1 bg-gray-100 border-none rounded-full px-5 py-3 font-medium focus:ring-2 focus:ring-blue-500">
-                <button onclick="sendReply()" class="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center active:scale-90 transition-all">
-                    <i data-lucide="arrow-up" class="w-6 h-6"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- BOTTOM NAV -->
-        <div class="absolute bottom-10 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/80 ios-blur rounded-[2.5rem] shadow-2xl border border-white flex justify-around items-center px-6 z-50">
-            <button id="tab-global" onclick="switchTab('global')" class="flex flex-col items-center space-y-1 text-black">
+        <!-- BOTTOM NAV BAR -->
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-20 bg-white/90 ios-blur rounded-[2.5rem] shadow-2xl border border-white/50 flex justify-around items-center px-6 z-50">
+            <button id="tab-global" onclick="switchTab('global')" class="flex flex-col items-center space-y-1 text-black nav-active transition-all">
                 <i data-lucide="globe" class="w-6 h-6"></i>
                 <span class="text-[9px] font-black uppercase">Global</span>
             </button>
-            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-black/30">
+            <button id="tab-inbox" onclick="switchTab('inbox')" class="relative flex flex-col items-center space-y-1 text-black/30 transition-all">
                 <i data-lucide="message-circle" class="w-6 h-6"></i>
                 <span class="text-[9px] font-black uppercase">Inbox</span>
                 <div id="inbox-badge" class="hidden absolute -top-1 -right-2 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">0</div>
             </button>
         </div>
+
+        
+        <!-- PRIVATE MESSAGE MODAL -->
+        <div id="private-modal" class="hidden fixed inset-0 z-[100] items-center justify-center p-6 bg-black/20 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+                <div class="flex justify-between items-start mb-6">
+                    <h3 class="text-xl font-black tracking-tight">Kirim Pesan ke <br><span id="target-anon-name" class="text-pink-600">@anon</span></h3>
+                    <button onclick="closePrivateModal()" class="text-gray-300 hover:text-gray-600"><i data-lucide="x"></i></button>
+                </div>
+                <textarea id="private-input" placeholder="Tulis pesan rahasia..." class="w-full bg-gray-50 rounded-[2rem] p-6 border-none focus:ring-2 ring-pink-500 text-lg font-bold min-h-[150px] mb-6"></textarea>
+                <button id="send-private-btn" onclick="sendPrivate()" class="w-full bg-gradient-to-r from-pink-500 to-rose-600 text-white py-5 rounded-full font-black uppercase tracking-widest shadow-lg shadow-pink-200 active:scale-95 transition-all">Kirim Pesan</button>
+            </div>
+        </div>
+
+        <!-- CHAT OVERLAY (FULL SCREEN INBOX CHAT) -->
+        <div id="chat-overlay" class="fixed inset-0 bg-gray-50 z-[110] translate-x-full overlay-transition flex flex-col">
+            <div class="pt-14 px-8 pb-4 flex items-center space-x-4 border-b border-gray-100 bg-white">
+                <button onclick="closeChat()" class="p-2 -ml-2"><i data-lucide="chevron-left"></i></button>
+                <h3 class="font-black text-xl">Detail Pesan</h3>
+            </div>
+            <div id="chat-history" class="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50"></div>
+            <div class="p-6 bg-white border-t border-gray-100">
+                <div class="flex items-center space-x-2 bg-gray-100 rounded-full px-6 py-2">
+                    <input id="reply-input" type="text" placeholder="Balas pesan ini..." class="flex-1 bg-transparent border-none focus:ring-0 font-bold py-3">
+                    <button onclick="sendReply()" class="bg-blue-600 text-white p-3 rounded-full shadow-md active:scale-90 transition-transform">
+                        <i data-lucide="arrow-up" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
-    <script>lucide.createIcons();</script>
+    <script>
+        // Initialization
+        lucide.createIcons();
+        
+        // Fix: Override global function to handle visual active state
+        const baseSwitchTab = window.switchTab;
+        window.switchTab = (tab) => {
+            baseSwitchTab(tab);
+            const tg = document.getElementById('tab-global');
+            const ti = document.getElementById('tab-inbox');
+            if(tab === 'global') {
+                tg.classList.add('nav-active'); tg.classList.remove('text-black/30');
+                ti.classList.remove('nav-active'); ti.classList.add('text-black/30');
+            } else {
+                ti.classList.add('nav-active'); ti.classList.remove('text-black/30');
+                tg.classList.remove('nav-active'); tg.classList.add('text-black/30');
+            }
+        };
+    </script>
 </body>
 </html>
