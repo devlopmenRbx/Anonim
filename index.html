@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <title>Global AnonChat - Grand Luxury Edition</title>
+    <title>AnonChat - Grand Luxury Edition</title>
     <meta name="description" content="Kirim pesan rahasia secara anonim dan temukan rahasia lainnya secara global!">
-    <meta property="og:title" content="Global AnonChat - Grand Luxury Edition">
+    <meta property="og:title" content="AnonChat - Grand Luxury Edition">
     <meta property="og:description" content="Kirim pesan rahasia secara anonim di Global Feed!">
     <meta property="og:image" content="https://api.dicebear.com/7.x/avataaars/png?seed=luxury&backgroundColor=b6e3f4">
     <meta property="og:type" content="website">
@@ -43,7 +43,6 @@
         let lastTap = 0;
         window.isVIP = localStorage.getItem('anon_vip') === 'true';
 
-        // Audio Effects
         const sounds = {
             pop: new Audio('https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'),
             whoosh: new Audio('https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3'),
@@ -221,24 +220,42 @@
             } catch (e) { console.error(e); } finally { btn.disabled = false; }
         };
 
-        window.toggleVIP = () => {
+        // VIP FUNCTIONS
+        window.openVIPModal = () => {
             if(window.isVIP) {
                 showToast("Kamu sudah anggota ELITE! 👑");
                 return;
             }
-            const codeInput = prompt("Masukkan Kode Akses VIP:");
-            if(!codeInput) return;
+            document.getElementById('vip-modal').classList.remove('hidden');
+            document.getElementById('vip-modal').classList.add('flex');
+        };
+
+        window.closeVIPModal = () => {
+            document.getElementById('vip-modal').classList.add('hidden');
+            document.getElementById('vip-modal').classList.remove('flex');
+            document.getElementById('vip-code-input').value = "";
+        };
+
+        window.submitVIPCode = () => {
+            const input = document.getElementById('vip-code-input');
+            const code = input.value.trim().toUpperCase();
             
-            const cleanCode = codeInput.trim().toUpperCase();
-            if(cleanCode === "VIP2024") {
+            if(code === "VIP2024") {
                 window.isVIP = true;
                 localStorage.setItem('anon_vip', 'true');
                 confetti({ particleCount: 200, spread: 100 });
                 showToast("WELCOME ELITE MEMBER! 👑");
                 document.getElementById('vip-status-badge').classList.remove('hidden');
+                closeVIPModal();
             } else {
-                showToast("Kode Salah! Hubungi Admin. ❌");
+                showToast("KODE SALAH! Hubungi Admin untuk beli kode. ❌");
             }
+        };
+
+        window.contactAdmin = () => {
+            const adminPhone = "628123456789"; 
+            const message = encodeURIComponent("Halo Admin, saya ingin membeli kode VIP AnonChat Grand Luxury Edition.");
+            window.open(`https://wa.me/${adminPhone}?text=${message}`, '_blank');
         };
 
         function listenToGlobal() {
@@ -442,7 +459,7 @@
                     <p class="text-[10px] font-bold text-black/40 uppercase">ID: <span id="my-id-display">...</span></p>
                 </div>
             </div>
-            <button onclick="toggleVIP()" class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform relative group">
+            <button onclick="openVIPModal()" class="w-10 h-10 bg-white/60 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform relative group">
                 <i data-lucide="crown" class="w-4 h-4 text-yellow-600"></i>
                 <span class="absolute -top-1 -right-1 flex h-3 w-3">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
@@ -496,6 +513,43 @@
         </div>
 
         <div id="luxury-toast" class="fixed bottom-32 left-1/2 -translate-x-1/2 bg-black/90 backdrop-blur-xl text-white px-8 py-4 rounded-full text-[10px] font-black uppercase tracking-widest shadow-2xl transition-all duration-500 opacity-0 translate-y-20 z-[2000]">Terkirim! ✨</div>
+    </div>
+
+    <!-- VIP Modal Upgrade -->
+    <div id="vip-modal" class="hidden fixed inset-0 z-[6000] items-center justify-center p-6 bg-black/80 backdrop-blur-lg">
+        <div class="bg-gradient-to-b from-amber-50 to-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border-4 border-yellow-400 relative overflow-hidden">
+            <!-- Decorative Crown BG -->
+            <div class="absolute -top-10 -right-10 opacity-10 rotate-12">
+                <i data-lucide="crown" class="w-40 h-40 text-yellow-600"></i>
+            </div>
+            
+            <div class="relative z-10 text-center">
+                <div class="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <i data-lucide="gem" class="w-8 h-8 text-white"></i>
+                </div>
+                <h3 class="text-2xl font-black tracking-tight text-yellow-700 uppercase">Akses VIP Elite</h3>
+                <p class="text-gray-500 text-xs font-bold mb-6 mt-1 uppercase tracking-widest">Masukkan kode untuk fitur sultan</p>
+                
+                <div class="bg-white/50 p-1 rounded-3xl border-2 border-yellow-100 mb-4">
+                    <input id="vip-code-input" type="text" placeholder="KODE VIP ANDA" class="w-full bg-transparent border-none text-center text-xl font-black text-yellow-800 placeholder:text-yellow-200 focus:ring-0 uppercase">
+                </div>
+                
+                <div class="space-y-3">
+                    <button onclick="submitVIPCode()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">Claim VIP Membership 👑</button>
+                    
+                    <button onclick="contactAdmin()" class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg flex items-center justify-center space-x-2 active:scale-95 transition-all">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i>
+                        <span>Beli Kode via WhatsApp</span>
+                    </button>
+                    
+                    <button onclick="closeVIPModal()" class="w-full py-2 text-gray-400 font-bold text-xs uppercase tracking-widest">Nanti Saja</button>
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-yellow-100">
+                    <p class="text-[9px] font-black text-gray-400 uppercase leading-relaxed">Klik tombol WhatsApp di atas untuk memesan kode dari Admin.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Private Message Modal -->
